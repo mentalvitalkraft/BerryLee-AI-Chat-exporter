@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         BerryLee AI Chat Exporter
+// @name         AI Chat Exporter (Stabil)
 // @namespace    http://tampermonkey.net/
-// @version      1.2
-// @description  Exportiert Chats von ChatGPT, Claude, Gemini, Grok als saubere Markdown-Datei
+// @version      2.0
+// @description  Zuverlässiger Export von AI-Chats als Markdown (auch bei langen Chats)
 // @author       BerryLee
 // @match        *://chatgpt.com/*
 // @match        *://claude.ai/*
@@ -15,42 +15,59 @@
 (function() {
     'use strict';
 
-    const btn = document.createElement('button');
-    btn.innerHTML = '📥 Chat als Markdown exportieren';
-    btn.style.cssText = `
-        position: fixed; 
-        bottom: 30px; 
-        right: 30px; 
-        z-index: 99999; 
-        padding: 12px 20px; 
-        background: #10a37f; 
-        color: white; 
-        border: none; 
-        border-radius: 8px; 
-        font-size: 15px; 
-        cursor: pointer; 
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    `;
+    let exportButton = null;
 
-    btn.onclick = () => {
-        // Versuche, Nachrichten zu finden (funktioniert bei den meisten AI-Chats)
-        const messages = document.querySelectorAll('div[data-message-author-role], .message, [class*="Message"], [role="article"]');
-        let markdown = `# AI Chat Export\n\n**Datum:** ${new Date().toLocaleString('de-DE')}\n\n`;
+    function createExportButton() {
+        if (exportButton && document.body.contains(exportButton)) return;
 
-        if (messages.length > 0) {
-            messages.forEach((msg, index) => {
-                const role = msg.getAttribute('data-message-author-role') || (msg.className.includes('user') ? 'User' : 'Assistant');
-                const text = msg.innerText.trim();
-                if (text.length > 5) {  // Ignoriere sehr kurze Elemente
-                    markdown += `### ${role} (${index + 1})\n\n${text}\n\n---\n\n`;
-                }
-            });
-        } else {
-            // Fallback: gesamten sichtbaren Text
-            markdown += document.body.innerText.replace(/\n{3,}/g, '\n\n');
+        // Alten Button entfernen falls vorhanden
+        const old = document.getElementById('ai-stable-export-btn');
+        if (old) old.remove();
+
+        exportButton = document.createElement('button');
+        exportButton.id = 'ai-stable-export-btn';
+        exportButton.innerHTML = '📥 Export als Markdown';
+        
+        exportButton.style.cssText = `
+            position: fixed !important;
+            bottom: 24px !important;
+            right: 24px !important;
+            z-index: 999999 !important;
+            padding: 12px 20px !important;
+            background: #10a37f !important;
+            color: white !important;
+            border: none !important;
+            border-radius: 10px !important;
+            font-size: 14px !important;
+            font-weight: 500 !important;
+            cursor: pointer !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25) !important;
+            transition: all 0.2s ease !important;
+        `;
+
+        exportButton.onmouseenter = () => {
+            exportButton.style.transform = 'scale(1.05)';
+        };
+        exportButton.onmouseleave = () => {
+            exportButton.style.transform = 'scale(1)';
+        };
+
+        exportButton.onclick = exportChat;
+
+        document.body.appendChild(exportButton);
+    }
+
+    function exportChat() {
+        const chatContent = document.body.innerText.trim();
+        
+        if (!chatContent || chatContent.length < 50) {
+            alert("Es konnte kein Chat-Inhalt gefunden werden.");
+            return;
         }
 
-        // Datei herunterladen
+        const date = new Date().toLocaleString('de-DE');
+        const markdown = `# AI Chat Export\n\n**Datum:** ${date}\n\n---\n\n${chatContent}`;
+
         const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -60,9 +77,37 @@
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+    }
 
-        alert('✅ Chat wurde als Markdown-Datei heruntergeladen!');
-    };
+    function init() {
+        // Button erstellen
+        createExportButton();
 
-    document.body.appendChild(btn);
+        // MutationObserver – erkennt Veränderungen im Chat
+        const observer = new MutationObserver(() => {
+            if (!document.getElementById('ai-stable-export-btn')) {
+                createExportButton();
+            }
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        // Zusätzliche Sicherung: Alle 2 Sekunden prüfen
+        setInterval(() => {
+            if (!document.getElementById('ai-stable-export-btn')) {
+                createExportButton();
+            }
+        }, 2000);
+    }
+
+    // Start
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+
 })();
